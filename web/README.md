@@ -37,3 +37,7 @@ npm run build
 The hosted production database is declared as `d1: DB` in `.openai/hosting.json`; schema and immutable generated migrations are under `db/` and `drizzle/`. SQL migrations contain schema only. The core bank is read from source; uploaded packs and learner records are runtime data, never committed to Git. Use the starter's documented local D1 migration workflow before previewing. Publishing through Sites applies production migrations automatically. Do not commit node_modules, runtime caches, database files, local secrets, credentials or build archives.
 
 A site-source snapshot is also kept under `web/` in https://github.com/baimasonga/WASSCE-School. Sites owns its deployment repository and identity. Keep source changes in both checkouts aligned; do not deploy an archive made from different source.
+
+## Multi-subject catalog revision
+
+The platform now uses country → exam year/series → subject → section/topic. The initial catalog has 38 entries across three country profiles. Only Mathematics currently has a populated bank; other subjects show topic outlines awaiting syllabus review and content. See [Country and subject evidence](docs/COUNTRIES_SUBJECTS_TOPICS.md). Format 2 packs carry subject/country/year/series metadata; old format 1 packs retain Mathematics defaults. Android 0.3.0 supports the same catalog and import format. Exam selection never mixes subjects. The Mathematics timing preset is not presented as an official paper format for other subjects.

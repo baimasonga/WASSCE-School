@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 export const attempts = sqliteTable("attempts", {
   userId: text("user_id").notNull(), key: text("attempt_key").notNull(), questionId: text("question_id").notNull(),
+  subjectId:text("subject_id"),country:text("country"),examYear:integer("exam_year"),
   answer: text("answer").notNull(), correct: integer("correct").notNull(), section: text("section").notNull(), createdAt: integer("created_at").notNull(),
 }, t => [primaryKey({ columns: [t.userId,t.key] })]);
 export const bookmarks = sqliteTable("bookmarks", {userId:text("user_id").notNull(),questionId:text("question_id").notNull()}, t=>[primaryKey({columns:[t.userId,t.questionId]})]);

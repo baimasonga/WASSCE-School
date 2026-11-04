@@ -8,6 +8,13 @@
       "when": 1793818174956,
       "tag": "0000_modern_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793819913045,
+      "tag": "0001_wide_sunspot",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ export async function GET(request:Request){
   const user=await getChatGPTUser();
   if(action==="library"){
    const {rows,questions}=await library();
-   return json({questions,packs:[{id:corePack.pack_id,title:corePack.title,version:corePack.version,count:coreQuestions.length,status:"published"},...rows.map(r=>({id:r.id,title:r.title,version:r.version,count:JSON.parse(r.content).questions.length,status:r.status}))]});
+   return json({questions,packs:[{id:corePack.pack_id,title:corePack.title,version:corePack.version,count:coreQuestions.length,status:"published",subject_id:"mathematics",countries:["SL","LR","GM"],exam_year:null,exam_series:"both"},...rows.map(r=>({id:r.id,title:r.title,version:r.version,count:JSON.parse(r.content).questions.length,status:r.status,subject_id:JSON.parse(r.content).subject_id||"mathematics",countries:JSON.parse(r.content).countries||["SL","LR","GM"],exam_year:JSON.parse(r.content).exam_year??null,exam_series:JSON.parse(r.content).exam_series||"both"}))]});
   }
   if(action==="download"){
    const id=new URL(request.url).searchParams.get("id");
@@ -58,7 +58,7 @@ export async function POST(request:Request){
    const unique=new Set<string>();
    const records=body.answers.map((a:{questionId:string;answer:string})=>{
     const q=map.get(a.questionId);if(!q||unique.has(a.questionId)||!(["A","B","C","D",""] as unknown[]).includes(a.answer))throw Error("Invalid answer submission.");unique.add(a.questionId);
-    return {userId:user.userId,key:`${body.token}/${q.id}`,questionId:q.id,answer:a.answer,correct:a.answer===q.correct_option?1:0,section:q.section,createdAt:Date.now()};
+    return {subjectId:q.subject_id||"mathematics",country:["SL","LR","GM"].includes(body.country)?body.country:"SL",examYear:Number.isInteger(body.examYear)&&body.examYear>=2000&&body.examYear<=2100?body.examYear:null,userId:user.userId,key:`${body.token}/${q.id}`,questionId:q.id,answer:a.answer,correct:a.answer===q.correct_option?1:0,section:q.section,createdAt:Date.now()};
    });
    await db.insert(attempts).values(records).onConflictDoNothing();return json({ok:true,correct:records.filter((r:{correct:number})=>r.correct).length});
   }
