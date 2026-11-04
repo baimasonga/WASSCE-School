@@ -34,3 +34,9 @@ The bundled JSON contains stable question IDs, four option keys, answer keys, fa
 ## Validation status
 
 The content contract is validated by the included Python script. JVM tests exercise session selection. An Android build must pass CI, followed by phone testing, before treating the app as ready. Remaining checks include screen readers, large fonts, process death, exam expiry, and install/upgrade testing. Source code has no declared open-source license yet.
+
+## Version 0.2.0
+
+Checked wrong options now use red text/borders and a pale red background; correct options use blue. Text labels and symbols supplement color. Mock exams reveal feedback only after submission.
+
+Import WASSCE School JSON packs from Downloads, preview before installation, choose a pack to study, and remove downloaded packs from the library. See [Question pack format](docs/QUESTION_PACKS.md) and [sample download](examples/sample-question-pack.json). Imports persist offline and are validated before atomic installation. Subscriptions, payment verification and signed entitlements are not implemented by this importer.
