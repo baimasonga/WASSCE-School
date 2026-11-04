@@ -1,0 +1,99 @@
+{
+  "format_version": 1,
+  "pack_id": "sample-maths-pack",
+  "title": "Sample mathematics download",
+  "version": "1.0.0",
+  "questions": [
+    {
+      "id": "WMC-0001",
+      "section": "A. Number and numeration",
+      "topic": "Number bases",
+      "family_id": "F001",
+      "syllabus_scope": "unmarked",
+      "question": "Convert 10011 (base 2) to base 10.",
+      "options": {
+        "A": "21",
+        "B": "17",
+        "C": "19",
+        "D": "23"
+      },
+      "correct_option": "C",
+      "solution_steps": [
+        {
+          "step": 1,
+          "text": "Write the binary place values from right to left: 1, 2, 4, 8, 16, ... ."
+        },
+        {
+          "step": 2,
+          "text": "Multiply each digit by its place value: 1×2^4 + 0×2^3 + 0×2^2 + 1×2^1 + 1×2^0."
+        },
+        {
+          "step": 3,
+          "text": "Evaluate and add: 16 + 0 + 0 + 2 + 1 = 19."
+        }
+      ]
+    },
+    {
+      "id": "WMC-0009",
+      "section": "A. Number and numeration",
+      "topic": "Number bases",
+      "family_id": "F002",
+      "syllabus_scope": "unmarked",
+      "question": "Express 30 (base 10) in base 3.",
+      "options": {
+        "A": "1011",
+        "B": "1020",
+        "C": "1010",
+        "D": "1002"
+      },
+      "correct_option": "C",
+      "solution_steps": [
+        {
+          "step": 1,
+          "text": "Divide the base-10 number repeatedly by 3."
+        },
+        {
+          "step": 2,
+          "text": "30 ÷ 3 = 10, remainder 0; 10 ÷ 3 = 3, remainder 1; 3 ÷ 3 = 1, remainder 0; 1 ÷ 3 = 0, remainder 1."
+        },
+        {
+          "step": 3,
+          "text": "Read the remainders from the last division upwards: 1010. Therefore the base-3 answer is 1010."
+        }
+      ]
+    },
+    {
+      "id": "WMC-0017",
+      "section": "A. Number and numeration",
+      "topic": "Number bases",
+      "family_id": "F003",
+      "syllabus_scope": "unmarked",
+      "question": "Add 1010 and 111 in base 2.",
+      "options": {
+        "A": "10000",
+        "B": "10100",
+        "C": "10010",
+        "D": "10001"
+      },
+      "correct_option": "D",
+      "solution_steps": [
+        {
+          "step": 1,
+          "text": "Convert the first binary number to base 10: 10."
+        },
+        {
+          "step": 2,
+          "text": "Convert the second binary number to base 10: 7."
+        },
+        {
+          "step": 3,
+          "text": "Add in base 10: 10+7=17."
+        },
+        {
+          "step": 4,
+          "text": "Express the total as powers of 2; the base-2 result is 10001."
+        }
+      ]
+    }
+  ]
+}
