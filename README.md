@@ -40,3 +40,7 @@ The content contract is validated by the included Python script. JVM tests exerc
 Checked wrong options now use red text/borders and a pale red background; correct options use blue. Text labels and symbols supplement color. Mock exams reveal feedback only after submission.
 
 Import WASSCE School JSON packs from Downloads, preview before installation, choose a pack to study, and remove downloaded packs from the library. See [Question pack format](docs/QUESTION_PACKS.md) and [sample download](examples/sample-question-pack.json). Imports persist offline and are validated before atomic installation. Subscriptions, payment verification and signed entitlements are not implemented by this importer.
+
+## Android v0.4.0: offline Chemistry simulator
+
+Tap **Chemistry lab • offline simulator** on the study home screen. The supplied lab, missions, notebook and timed practical ship inside the APK. Rotate for a wider bench. Completed mock summaries stay on the phone; the current experiment restarts after closing. Online class features open separately in your browser. See [Android lab details](docs/ANDROID_CHEMISTRY_LAB.md).

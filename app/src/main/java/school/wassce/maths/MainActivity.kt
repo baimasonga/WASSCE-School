@@ -1,6 +1,8 @@
 package school.wassce.maths
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -96,6 +98,7 @@ class MainActivity : ComponentActivity() {
 }
 @Composable
 private fun School(bank: List<Question>, store: StudyStore, packs: List<QuestionPack>, subjects: List<CatalogSubject>, busy: Boolean, onImport: () -> Unit, onRemove: (QuestionPack) -> Unit) {
+    val context = LocalContext.current
     var country by rememberSaveable { mutableStateOf(store.profile("country", "SL")) }
     var subjectId by rememberSaveable { mutableStateOf(store.profile("subject", "mathematics")) }
     var examYear by rememberSaveable { mutableStateOf(store.profile("year", "2026")) }
@@ -228,6 +231,10 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                     TextButton(onClick = { screen = "Bookmarks" }) { Text("Saved") }
                     TextButton(onClick = { screen = "Mistakes" }) { Text("Mistakes") }
                 }
+                OutlinedButton(onClick = { context.startActivity(Intent(context, ChemistryLabActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Chemistry lab • offline simulator")
+                }
+                Text("Titrations, salt analysis, gas tests and a timed mock practical. Rotate your phone for a wider bench. Lab scores are separate from question practice.", style = MaterialTheme.typography.bodySmall)
                 Choice("Country", COUNTRY_NAMES.values.toList(), COUNTRY_NAMES[country] ?: "Sierra Leone") { label -> country = COUNTRY_NAMES.entries.first { it.value == label }.key; packId = "all"; section = "All sections"; topic = "All topics" }
                 Choice("Exam year", listOf("2026","2027","2028","2029","2030"), examYear) { examYear = it; packId = "all" }
                 Choice("Candidate series", listOf("School candidates", "Private candidates"), if (examSeries == "school") "School candidates" else "Private candidates") { examSeries = if (it == "School candidates") "school" else "private"; packId = "all" }

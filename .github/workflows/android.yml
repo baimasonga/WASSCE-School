@@ -30,6 +30,8 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Validate question bank
         run: python3 scripts/validate_bank.py
+      - name: Validate offline Chemistry lab
+        run: python3 scripts/validate_lab.py
       - name: Test, lint and build
         run: gradle testDebugUnitTest lintDebug assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
