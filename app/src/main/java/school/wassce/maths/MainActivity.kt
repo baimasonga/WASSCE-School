@@ -2,6 +2,9 @@ package school.wassce.maths
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,22 +20,73 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val store = StudyStore(this)
+        val packStore = PackStore(this)
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF14665D), secondary = Color(0xFF97601D))) {
-                val questions by produceState<List<Question>?>(null) {
-                    value = withContext(Dispatchers.IO) { runCatching { loadQuestions(this@MainActivity) }.getOrDefault(emptyList()) }
+                val scope = rememberCoroutineScope()
+                var core by remember { mutableStateOf<List<Question>?>(null) }
+                var packs by remember { mutableStateOf<List<QuestionPack>>(emptyList()) }
+                var pending by remember { mutableStateOf<QuestionPack?>(null) }
+                var remove by remember { mutableStateOf<QuestionPack?>(null) }
+                var message by remember { mutableStateOf<String?>(null) }
+                var busy by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    val result = withContext(Dispatchers.IO) { runCatching { loadQuestions(this@MainActivity) to packStore.installed() } }
+                    result.onSuccess { (bank, installed) -> packs = installed; core = bank }
+                        .onFailure { core = emptyList() }
                 }
+                val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                    if (uri != null) scope.launch {
+                        busy = true
+                        val result = withContext(Dispatchers.IO) { runCatching {
+                            contentResolver.openInputStream(uri)?.use { parseQuestionPack(readPackText(it)) }
+                                ?: error("Cannot open the selected file.")
+                        } }
+                        result.onSuccess { pending = it }.onFailure { message = "Import failed: " + (it.message?.take(200) ?: "Invalid question pack.") }
+                        busy = false
+                    }
+                }
+                pending?.let { candidate ->
+                    AlertDialog(onDismissRequest = { if (!busy) pending = null }, title = { Text("Import ${candidate.title}?") },
+                        text = { Text("${candidate.questions.size} questions • version ${candidate.version}\n" +
+                            if (packs.any { it.id == candidate.id }) "This replaces the installed version of this pack. Saved progress is retained by question ID." else "The pack will be available offline in your question library.") },
+                        confirmButton = { TextButton(enabled = !busy, onClick = {
+                            scope.launch {
+                                busy = true
+                                val result = withContext(Dispatchers.IO) { runCatching { packStore.install(candidate); packStore.installed() } }
+                                result.onSuccess { packs = it; pending = null; message = "Imported ${candidate.questions.size} questions. Select the pack from Question library to study." }
+                                    .onFailure { message = it.message?.take(200) ?: "Could not save the pack."; pending = null }
+                                busy = false
+                            }
+                        }) { Text(if (busy) "Importing…" else "Import pack") } },
+                        dismissButton = { TextButton(enabled = !busy, onClick = { pending = null }) { Text("Cancel") } })
+                }
+                remove?.let { candidate ->
+                    AlertDialog(onDismissRequest = { remove = null }, title = { Text("Remove ${candidate.title}?") },
+                        text = { Text("This removes the downloaded questions from this phone. Your progress stays saved if you import the same pack again.") },
+                        confirmButton = { TextButton(onClick = { scope.launch {
+                            busy = true
+                            val result = withContext(Dispatchers.IO) { runCatching { packStore.remove(candidate.id); packStore.installed() } }
+                            result.onSuccess { packs = it }.onFailure { message = "Could not remove this pack." }
+                            remove = null; busy = false
+                        } }) { Text("Remove") } }, dismissButton = { TextButton(onClick = { remove = null }) { Text("Cancel") } })
+                }
+                message?.let { text -> AlertDialog(onDismissRequest = { message = null }, title = { Text("Question library") },
+                    text = { Text(text) }, confirmButton = { TextButton(onClick = { message = null }) { Text("OK") } }) }
                 Surface(Modifier.fillMaxSize()) {
                     when {
-                        questions == null -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("Loading your offline library…") }
-                        questions!!.isEmpty() -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("The question bank could not be loaded. Please reinstall the app.") }
-                        else -> School(questions!!, store)
+                        core == null -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("Loading your offline library…") }
+                        core!!.isEmpty() -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("The question bank could not be loaded. Please reinstall the app.") }
+                        else -> School(core!! + packs.flatMap { it.questions }, store, packs, busy,
+                            onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                            onRemove = { remove = it })
                     }
                 }
             }
@@ -40,7 +94,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 @Composable
-private fun School(bank: List<Question>, store: StudyStore) {
+private fun School(bank: List<Question>, store: StudyStore, packs: List<QuestionPack>, busy: Boolean, onImport: () -> Unit, onRemove: (QuestionPack) -> Unit) {
+    var packId by rememberSaveable { mutableStateOf("builtin") }
+    val activePack = packId.takeIf { it == "builtin" || packs.any { p -> p.id == it } } ?: "builtin"
+    val source = bank.filter { it.packId == activePack }
     var session by remember { mutableStateOf(store.restore()?.takeIf { s -> s.ids.isNotEmpty() && s.index in s.ids.indices && s.ids.all { id -> bank.any { it.id == id } } }) }
     var screen by rememberSaveable { mutableStateOf("Home") }
     var includeMarked by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +134,7 @@ private fun School(bank: List<Question>, store: StudyStore) {
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         val s = session
         if (s != null && screen != "Paused") {
-            val chosen = remember(s.ids) { s.ids.map { id -> bank.first { it.id == id } } }
+            val chosen = remember(s.ids, bank) { s.ids.map { id -> bank.first { it.id == id } } }
             val question = chosen[s.index]
             var visibleSteps by rememberSaveable(s.token, question.id) { mutableIntStateOf(0) }
             val show = s.finished || (!s.exam && question.id in s.revealed)
@@ -95,14 +152,28 @@ private fun School(bank: List<Question>, store: StudyStore) {
                 if (question.marked) Text("Country-marked syllabus topic", style = MaterialTheme.typography.labelMedium)
                 Text(question.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
                 question.options.forEach { (key, value) ->
-                    val label = when {
-                        show && key == question.answer -> "✓ $key. $value"
-                        show && key == selected -> "✗ $key. $value"
-                        selected == key -> "● $key. $value"
-                        else -> "$key. $value"
+                    val feedback = answerFeedback(key, question.answer, selected, show)
+                    val ink = when(feedback) {
+                        AnswerFeedback.CORRECT -> Color(0xFF1249A6)
+                        AnswerFeedback.INCORRECT -> Color(0xFFB3261E)
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    val background = when(feedback) {
+                        AnswerFeedback.CORRECT -> Color(0xFFEAF1FF)
+                        AnswerFeedback.INCORRECT -> Color(0xFFFCE9E7)
+                        else -> Color.Transparent
+                    }
+                    val label = when(feedback) {
+                        AnswerFeedback.CORRECT -> "✓ Correct — $key. $value"
+                        AnswerFeedback.INCORRECT -> "✗ Your answer is incorrect — $key. $value"
+                        else -> if (selected == key) "● $key. $value" else "$key. $value"
                     }
                     OutlinedButton(onClick = { if (!show) update(s.copy(responses = s.responses + (question.id to key))) },
-                        enabled = !show, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) { Text(label, modifier = Modifier.fillMaxWidth()) }
+                        enabled = !show,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ink, containerColor = background,
+                            disabledContentColor = ink, disabledContainerColor = background),
+                        border = BorderStroke(if (feedback == AnswerFeedback.NEUTRAL) 1.dp else 2.dp, ink),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) { Text(label, modifier = Modifier.fillMaxWidth()) }
                 }
                 TextButton(onClick = { store.bookmark(question.id); revision++ }) {
                     Text(if (remember(revision, question.id) { question.id in store.bookmarks() }) "Remove bookmark" else "Bookmark question")
@@ -112,7 +183,7 @@ private fun School(bank: List<Question>, store: StudyStore) {
                     update(s.copy(revealed = s.revealed + question.id)); revision++
                 }) { Text("Check answer") }
                 if (show) {
-                    Text("Correct answer: ${question.answer} — ${question.options[question.answer]}", color = MaterialTheme.colorScheme.primary)
+                    Text("Correct answer: ${question.answer} — ${question.options[question.answer]}", color = Color(0xFF1249A6))
                     Text("Worked solution", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
                     question.steps.take(visibleSteps).forEachIndexed { i, text ->
                         Text("Step ${i+1}: $text", modifier = Modifier.padding(vertical = 6.dp))
@@ -147,16 +218,21 @@ private fun School(bank: List<Question>, store: StudyStore) {
                     TextButton(onClick = { screen = "Bookmarks" }) { Text("Saved") }
                     TextButton(onClick = { screen = "Mistakes" }) { Text("Mistakes") }
                 }
+                val packLabels = listOf("Built-in mathematics") + packs.map { "${it.title} (${it.id})" }
+                val packIds = listOf("builtin") + packs.map { it.id }
+                Choice("Question library", packLabels, packLabels[packIds.indexOf(activePack)]) { label ->
+                    packId = packIds[packLabels.indexOf(label)]; section = "All sections"; topic = "All topics"
+                }
                 Text(screen.takeUnless { it == "Paused" } ?: "Practice", style = MaterialTheme.typography.titleMedium)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Include country-marked topics", modifier = Modifier.weight(1f).padding(top = 12.dp))
                     Switch(checked = includeMarked, onCheckedChange = { includeMarked = it })
                 }
-                Text("803 unmarked + 197 country-marked questions. Country eligibility needs teacher confirmation.", style = MaterialTheme.typography.bodySmall)
-                Choice("Section", listOf("All sections") + bank.map { it.section }.distinct(), section) { section = it; topic = "All topics" }
-                val topics = bank.filter { section == "All sections" || it.section == section }.map { it.topic }.distinct().sorted()
+                Text("${source.count { !it.marked }} unmarked + ${source.count { it.marked }} country-marked questions in this pack. Country eligibility needs teacher confirmation.", style = MaterialTheme.typography.bodySmall)
+                Choice("Section", listOf("All sections") + source.map { it.section }.distinct(), section) { section = it; topic = "All topics" }
+                val topics = source.filter { section == "All sections" || it.section == section }.map { it.topic }.distinct().sorted()
                 Choice("Topic", listOf("All topics") + topics, topic) { topic = it }
-                val allowed = bank.filter { q ->
+                val allowed = source.filter { q ->
                     (includeMarked || !q.marked) && (section == "All sections" || q.section == section) &&
                         (topic == "All topics" || q.topic == topic) && when(screen) {
                             "Bookmarks" -> q.id in store.bookmarks()
@@ -170,12 +246,23 @@ private fun School(bank: List<Question>, store: StudyStore) {
                     update(Session(ids = chosen.map { it.id }, exam = false)); screen = "Home"
                 }) { Text("Start practice • up to 20 questions") }
                 Button(enabled = session == null, modifier = Modifier.fillMaxWidth(), onClick = {
-                    val pool = bank.filter { includeMarked || !it.marked }
+                    val pool = source.filter { includeMarked || !it.marked }
                     val chosen = chooseQuestions(pool, 50)
                     update(Session(ids = chosen.map { it.id }, exam = true, deadline = System.currentTimeMillis()+90*60*1000L)); screen = "Home"
-                }) { Text("Mock exam • 50 questions • 90 minutes") }
-                Text("Mock exams use all eligible sections. Practice uses your filters. Each session avoids repeating the same question family.", style = MaterialTheme.typography.bodySmall)
+                }) { Text("Mock exam • up to 50 questions • 90 minutes") }
+                Text("Mock exams use all eligible sections in the selected pack. Practice uses your filters. Each session avoids repeating the same question family.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(20.dp))
+                Text("Downloaded question packs", style = MaterialTheme.typography.titleMedium)
+                Button(enabled = session == null && !busy, onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (busy) "Reading pack…" else "Import downloaded JSON pack")
+                }
+                if (session != null) Text("Finish or discard the saved session to change downloaded packs.", style = MaterialTheme.typography.bodySmall)
+                Text("Choose a WASSCE School JSON question pack from Downloads. PDF and VCE files are not supported.", style = MaterialTheme.typography.bodySmall)
+                packs.forEach { pack ->
+                    Text("${pack.title} • ${pack.questions.size} questions • v${pack.version}", modifier = Modifier.padding(top = 8.dp))
+                    TextButton(enabled = session == null && !busy, onClick = { onRemove(pack) }) { Text("Remove downloaded pack") }
+                }
+                Spacer(Modifier.height(16.dp))
                 Text("Works offline • No account required", style = MaterialTheme.typography.titleMedium)
                 Text("Original practice material, not official WAEC questions. Teacher review is recommended. All learning progress stays on this phone.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(24.dp))
