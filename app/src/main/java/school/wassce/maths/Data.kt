@@ -8,7 +8,7 @@ import java.util.UUID
 data class Question(
     val id: String, val section: String, val topic: String, val family: String,
     val marked: Boolean, val text: String, val options: Map<String, String>,
-    val answer: String, val steps: List<String>
+    val answer: String, val steps: List<String>, val packId: String = "builtin"
 )
 fun loadQuestions(context: Context): List<Question> {
     val root = JSONObject(context.assets.open("questions.json").bufferedReader().use { it.readText() })
