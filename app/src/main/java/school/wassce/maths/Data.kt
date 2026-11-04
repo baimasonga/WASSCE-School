@@ -8,7 +8,8 @@ import java.util.UUID
 data class Question(
     val id: String, val section: String, val topic: String, val family: String,
     val marked: Boolean, val text: String, val options: Map<String, String>,
-    val answer: String, val steps: List<String>, val packId: String = "builtin"
+    val answer: String, val steps: List<String>, val packId: String = "builtin", val subjectId: String = "mathematics",
+    val countries: Set<String> = setOf("SL", "LR", "GM"), val examYear: Int? = null, val examSeries: String = "both"
 )
 fun loadQuestions(context: Context): List<Question> {
     val root = JSONObject(context.assets.open("questions.json").bufferedReader().use { it.readText() })
@@ -31,6 +32,8 @@ data class Session(
 data class Score(val total: Int = 0, val correct: Int = 0)
 class StudyStore(context: Context) {
     private val prefs = context.getSharedPreferences("study", Context.MODE_PRIVATE)
+    fun profile(key: String, fallback: String): String = prefs.getString("profile_$key", fallback) ?: fallback
+    fun saveProfile(country: String, subject: String, year: String, series: String) { prefs.edit().putString("profile_country",country).putString("profile_subject",subject).putString("profile_year",year).putString("profile_series",series).apply() }
     fun bookmarks(): Set<String> = prefs.getStringSet("bookmarks", emptySet())!!.toSet()
     fun bookmark(id: String) {
         val values = bookmarks().toMutableSet()
@@ -80,4 +83,7 @@ class StudyStore(context: Context) {
     }
 }
 
-fun chooseQuestions(pool: List<Question>, limit: Int): List<Question> = pool.shuffled().distinctBy { it.family }.take(limit)
+fun chooseQuestions(pool: List<Question>, limit: Int): List<Question> {
+    require(pool.map { it.subjectId }.distinct().size <= 1) { "Choose one subject before starting a session." }
+    return pool.shuffled().distinctBy { it.family }.take(limit)
+}

@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val store = StudyStore(this)
         val packStore = PackStore(this)
+        val subjectCatalog = loadSubjectCatalog(this)
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF14665D), secondary = Color(0xFF97601D))) {
                 val scope = rememberCoroutineScope()
@@ -84,7 +85,7 @@ class MainActivity : ComponentActivity() {
                     when {
                         core == null -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("Loading your offline library…") }
                         core!!.isEmpty() -> Box(Modifier.safeDrawingPadding().padding(24.dp)) { Text("The question bank could not be loaded. Please reinstall the app.") }
-                        else -> School(core!! + packs.flatMap { it.questions }, store, packs, busy,
+                        else -> School(core!! + packs.flatMap { it.questions }, store, packs, subjectCatalog, busy,
                             onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                             onRemove = { remove = it })
                     }
@@ -94,10 +95,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 @Composable
-private fun School(bank: List<Question>, store: StudyStore, packs: List<QuestionPack>, busy: Boolean, onImport: () -> Unit, onRemove: (QuestionPack) -> Unit) {
-    var packId by rememberSaveable { mutableStateOf("builtin") }
-    val activePack = packId.takeIf { it == "builtin" || packs.any { p -> p.id == it } } ?: "builtin"
-    val source = bank.filter { it.packId == activePack }
+private fun School(bank: List<Question>, store: StudyStore, packs: List<QuestionPack>, subjects: List<CatalogSubject>, busy: Boolean, onImport: () -> Unit, onRemove: (QuestionPack) -> Unit) {
+    var country by rememberSaveable { mutableStateOf(store.profile("country", "SL")) }
+    var subjectId by rememberSaveable { mutableStateOf(store.profile("subject", "mathematics")) }
+    var examYear by rememberSaveable { mutableStateOf(store.profile("year", "2026")) }
+    var examSeries by rememberSaveable { mutableStateOf(store.profile("series", "school")) }
+    val subject = subjects.firstOrNull { it.id == subjectId } ?: subjects.first()
+    LaunchedEffect(country, subjectId, examYear, examSeries) { store.saveProfile(country, subjectId, examYear, examSeries) }
+    var packId by rememberSaveable { mutableStateOf("all") }
+    val profileBank = bank.filter { it.matchesProfile(country, subject.id, examYear.toIntOrNull() ?: 2026, examSeries) }
+    val eligiblePacks = packs.filter { it.subjectId == subject.id && country in it.countries && (it.examYear == null || it.examYear.toString() == examYear) && (it.examSeries == "both" || it.examSeries == examSeries) }
+    val ids = listOf("all") + (if (subject.id == "mathematics") listOf("builtin") else emptyList()) + eligiblePacks.map { it.id }
+    val activePack = packId.takeIf { it in ids } ?: "all"
+    val source = profileBank.filter { activePack == "all" || it.packId == activePack }
     var session by remember { mutableStateOf(store.restore()?.takeIf { s -> s.ids.isNotEmpty() && s.index in s.ids.indices && s.ids.all { id -> bank.any { it.id == id } } }) }
     var screen by rememberSaveable { mutableStateOf("Home") }
     var includeMarked by rememberSaveable { mutableStateOf(false) }
@@ -130,7 +140,7 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
         dismissButton = { TextButton(onClick = { quit = false }) { Text("Keep studying") } })
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp)) {
         Text("WASSCE School", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp))
-        Text("Mathematics • Learn at your own pace", style = MaterialTheme.typography.bodyMedium)
+        Text("WASSCE subjects • Your learning space", style = MaterialTheme.typography.bodyMedium)
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         val s = session
         if (s != null && screen != "Paused") {
@@ -148,7 +158,7 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                     val left = ((s.deadline-now).coerceAtLeast(0)/1000).toInt()
                     Text("Mock exam • %02d:%02d remaining".format(left/60,left%60), color = MaterialTheme.colorScheme.primary)
                 }
-                Text("Question ${s.index+1} of ${chosen.size} • ${question.topic}", modifier = Modifier.padding(vertical = 12.dp))
+                Text("${subjects.firstOrNull { it.id == question.subjectId }?.name ?: question.subjectId} • Question ${s.index+1} of ${chosen.size} • ${question.topic}", modifier = Modifier.padding(vertical = 12.dp))
                 if (question.marked) Text("Country-marked syllabus topic", style = MaterialTheme.typography.labelMedium)
                 Text(question.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
                 question.options.forEach { (key, value) ->
@@ -218,8 +228,13 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                     TextButton(onClick = { screen = "Bookmarks" }) { Text("Saved") }
                     TextButton(onClick = { screen = "Mistakes" }) { Text("Mistakes") }
                 }
-                val packLabels = listOf("Built-in mathematics") + packs.map { "${it.title} (${it.id})" }
-                val packIds = listOf("builtin") + packs.map { it.id }
+                Choice("Country", COUNTRY_NAMES.values.toList(), COUNTRY_NAMES[country] ?: "Sierra Leone") { label -> country = COUNTRY_NAMES.entries.first { it.value == label }.key; packId = "all"; section = "All sections"; topic = "All topics" }
+                Choice("Exam year", listOf("2026","2027","2028","2029","2030"), examYear) { examYear = it; packId = "all" }
+                Choice("Candidate series", listOf("School candidates", "Private candidates"), if (examSeries == "school") "School candidates" else "Private candidates") { examSeries = if (it == "School candidates") "school" else "private"; packId = "all" }
+                Choice("Subject", subjects.map { it.name }, subject.name) { name -> subjectId = subjects.first { it.name == name }.id; packId = "all"; section = "All sections"; topic = "All topics" }
+                Text("Subject availability depends on country, year and series. Confirm current registration subjects with your school or national WAEC office.", style = MaterialTheme.typography.bodySmall)
+                val packLabels = listOf("All packs for this subject") + (if (subject.id == "mathematics") listOf("Built-in mathematics") else emptyList()) + eligiblePacks.map { "${it.title} (${it.id})" }
+                val packIds = ids
                 Choice("Question library", packLabels, packLabels[packIds.indexOf(activePack)]) { label ->
                     packId = packIds[packLabels.indexOf(label)]; section = "All sections"; topic = "All topics"
                 }
@@ -240,17 +255,21 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                             else -> true
                         }
                 }
+                if (source.isEmpty()) {
+                    Text("${subject.name}: question bank being prepared for this profile.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+                    Text("Topic outline (awaiting syllabus review): " + subject.topics.joinToString(" • "), style = MaterialTheme.typography.bodySmall)
+                }
                 Text("${allowed.size} questions available", modifier = Modifier.padding(vertical = 8.dp))
                 Button(enabled = allowed.isNotEmpty() && session == null, modifier = Modifier.fillMaxWidth(), onClick = {
                     val chosen = chooseQuestions(allowed, 20)
                     update(Session(ids = chosen.map { it.id }, exam = false)); screen = "Home"
                 }) { Text("Start practice • up to 20 questions") }
-                Button(enabled = session == null, modifier = Modifier.fillMaxWidth(), onClick = {
+                Button(enabled = session == null && source.any { includeMarked || !it.marked }, modifier = Modifier.fillMaxWidth(), onClick = {
                     val pool = source.filter { includeMarked || !it.marked }
                     val chosen = chooseQuestions(pool, 50)
                     update(Session(ids = chosen.map { it.id }, exam = true, deadline = System.currentTimeMillis()+90*60*1000L)); screen = "Home"
                 }) { Text("Mock exam • up to 50 questions • 90 minutes") }
-                Text("Mock exams use all eligible sections in the selected pack. Practice uses your filters. Each session avoids repeating the same question family.", style = MaterialTheme.typography.bodySmall)
+                Text("Mocks use one subject only. The 50-question/90-minute preset comes from Mathematics; other subjects may use different official formats. Practice uses your filters. Each session avoids repeating the same question family.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(20.dp))
                 Text("Downloaded question packs", style = MaterialTheme.typography.titleMedium)
                 Button(enabled = session == null && !busy, onClick = onImport, modifier = Modifier.fillMaxWidth()) {
@@ -259,7 +278,7 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                 if (session != null) Text("Finish or discard the saved session to change downloaded packs.", style = MaterialTheme.typography.bodySmall)
                 Text("Choose a WASSCE School JSON question pack from Downloads. PDF and VCE files are not supported.", style = MaterialTheme.typography.bodySmall)
                 packs.forEach { pack ->
-                    Text("${pack.title} • ${pack.questions.size} questions • v${pack.version}", modifier = Modifier.padding(top = 8.dp))
+                    Text("${pack.title} • ${subjects.firstOrNull { it.id == pack.subjectId }?.name ?: pack.subjectId} • ${pack.countries.joinToString()} • ${pack.questions.size} questions • v${pack.version}", modifier = Modifier.padding(top = 8.dp))
                     TextButton(enabled = session == null && !busy, onClick = { onRemove(pack) }) { Text("Remove downloaded pack") }
                 }
                 Spacer(Modifier.height(16.dp))

@@ -1,0 +1,14 @@
+{
+  "format_version": 2,
+  "pack_id": "english-language-sample",
+  "title": "English Language · Sample Grammar Pack",
+  "version": "1.0.0",
+  "subject_id": "english-language",
+  "countries": ["SL", "LR", "GM"],
+  "exam_year": null,
+  "exam_series": "both",
+  "questions": [
+    {"id":"ENG-001","family_id":"irregular-plurals","section":"Grammar and structure","topic":"Nouns","syllabus_scope":"unmarked","question":"Choose the correct plural form of child.","options":{"A":"childs","B":"children","C":"childes","D":"childrens"},"correct_option":"B","solution_steps":[{"step":1,"text":"Identify the noun: child."},{"step":2,"text":"Child has an irregular plural, so simply adding s is incorrect."},{"step":3,"text":"The correct plural is children. Choose B."}]},
+    {"id":"ENG-002","family_id":"subject-verb-agreement","section":"Grammar and structure","topic":"Subject–verb agreement","syllabus_scope":"unmarked","question":"Choose the correct word: The students ___ ready for the lesson.","options":{"A":"is","B":"was","C":"are","D":"be"},"correct_option":"C","solution_steps":[{"step":1,"text":"The subject students is plural."},{"step":2,"text":"A plural subject needs a matching finite verb. In the present tense, use are."},{"step":3,"text":"The complete sentence is: The students are ready for the lesson. Choose C."}]}
+  ]
+}
