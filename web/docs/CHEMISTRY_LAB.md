@@ -6,4 +6,4 @@ The simulation engine, mission data, practical exam and teacher dashboard are pr
 
 Teacher email confirmation/reset callbacks must include https://wassce-school.medbangz.chatgpt.site/chemistry-lab/teacher.html in the existing Supabase project's redirect allowlist before using those flows. Backend policies and RPCs are not included in the uploaded ZIP and were not independently verified.
 
-Mission topic outlines and mock marking are supplied practice content, not a verified guarantee of complete WAEC syllabus coverage. Android does not embed this web simulator in this revision.
+Mission topic outlines and mock marking are supplied practice content, not a verified guarantee of complete WAEC syllabus coverage. Android v0.4.0 bundles an offline copy of the simulator. Online classes remain in the browser; lab scores do not sync automatically.
