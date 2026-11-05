@@ -14,6 +14,17 @@ Native Android mathematics practice app with 1,000 original multiple-choice ques
 
 This is original practice material, not official WAEC past questions. Country-symbol eligibility and question quality require local teacher review before publication. The bank reflects the uploaded syllabus, not a claim that it is the latest edition. Drawings, plots and interactive construction exercises are not included.
 
+## Download
+
+Get the latest app from **[Releases](https://github.com/baimasonga/WASSCE-School/releases/latest)**, or directly: <https://github.com/baimasonga/WASSCE-School/releases/latest/download/WASSCE-School.apk>. Open the file on an Android 8.0+ phone and allow installs from your browser when asked. Releases are signed with one permanent key, so new versions install over old ones and keep progress. Earlier *test* builds (CI artifacts) were signed with throwaway keys: uninstall them before installing a release.
+
+### Publishing a release (maintainers)
+
+1. Bump `versionCode` and `versionName` in `app/build.gradle.kts` and merge to `main`.
+2. Actions → **Android release** → Run workflow. It tests, builds and signs the APK, then publishes release `v<versionName>` with `WASSCE-School.apk` attached. The website's download button always points at the latest release.
+
+The workflow needs four repository secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep an offline backup of the keystore: if it is lost, no future version can update existing installs.
+
 ## Build
 
 Requires JDK 17, Gradle 8.9, and Android SDK 35. Open the project in Android Studio, install the SDK if prompted, and sync Gradle. The project currently uses an installed Gradle distribution; no binary Gradle wrapper is committed.
@@ -25,7 +36,7 @@ gradle testDebugUnitTest lintDebug assembleDebug
 
 Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-The **Android debug APK** GitHub Actions workflow performs these checks and uploads the APK as `WASSCE-School-debug`. Open the repository's Actions tab, select a successful run, and download its artifact. This is a test build; Play Store release signing is not configured.
+The **Android debug APK** GitHub Actions workflow performs these checks and uploads a test APK as `WASSCE-School-debug`. Each test build uses a throwaway signing key, so use [Releases](https://github.com/baimasonga/WASSCE-School/releases/latest) for installs you want to keep updating.
 
 ## Data and privacy
 
