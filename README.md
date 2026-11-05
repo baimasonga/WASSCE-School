@@ -25,6 +25,10 @@ Get the latest app from **[Releases](https://github.com/baimasonga/WASSCE-School
 
 The workflow needs four repository secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep an offline backup of the keystore: if it is lost, no future version can update existing installs.
 
+## Website
+
+`web/` is the WASSCE School website: practice, mock exams, progress, the Chemistry lab and app downloads, running on Cloudflare Workers + D1 with Supabase sign-in. See [web/README.md](web/README.md) and [web/DEPLOY.md](web/DEPLOY.md).
+
 ## Build
 
 Requires JDK 17, Gradle 8.9, and Android SDK 35. Open the project in Android Studio, install the SDK if prompted, and sync Gradle. The project currently uses an installed Gradle distribution; no binary Gradle wrapper is committed.
