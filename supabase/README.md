@@ -17,6 +17,8 @@ These migrations are the database behind the website lab's class features (`web/
 - **Sign-out:** `student_logout(token)` replaces the student's token, so "Sign out" now signs the student out on every device. `teacher_reset_pin` does the same. Results still queued on another device under the old token are discarded when that device next connects.
 - **Login errors:** `student_login` gives `wrong_pin` for both an unknown index number and a wrong PIN, and runs bcrypt on both paths so the timing matches.
 
+Follow-up migration `20261105140320_wassce_lab_fix_login` fixes two older `student_login` flaws found in review: a NULL PIN skipped the check and returned the student's token, and the `raise exception` after a wrong PIN rolled back the failure counter, so the lockout never engaged. Wrong PINs and unknown index numbers now *return* `{"error":"wrong_pin"}` so the counter commits; `cloud.js` turns that into an error. The student row is locked while checking so parallel guesses are each counted.
+
 Applied to the live project on 2026-11-05 and tested there in a rolled-back transaction as the `anon` and `authenticated` roles.
 
 ## Remaining limitations

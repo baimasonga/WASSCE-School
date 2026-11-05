@@ -20,7 +20,8 @@ async function clInit(){
   if(CL.me)await clRefresh();
   clFlush();window.addEventListener('online',()=>{clFlush();clRefresh();});
 }
-async function clRpc(fn,args){const {data,error}=await CL.sb.rpc(fn,args);if(error)throw error;return data;}
+// Some failures (e.g. a wrong PIN) come back as {error} so the server can record them; treat them as errors.
+async function clRpc(fn,args){const {data,error}=await CL.sb.rpc(fn,args);if(error)throw error;if(data&&typeof data==='object'&&typeof data.error==='string')throw new Error(data.error);return data;}
 async function clRefresh(){
   if(!CL.ready||!CL.me)return;
   try{CL.data=await clRpc('student_me',{p_token:CL.me.token});CL.me={...CL.me,...CL.data.me};localStorage.setItem(CL.meKey,JSON.stringify(CL.me));}
