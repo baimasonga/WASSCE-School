@@ -5,10 +5,13 @@
    ========================================================= */
 "use strict";
 const CL={sb:null,me:null,data:null,ready:false,queueKey:'wassce-queue',meKey:'wassce-student'};
-const CLERR={class_not_found:'No class with that code. Check the code your teacher gave you.',bad_pin:'The PIN must be 4–6 digits.',bad_details:'Enter your full name and index number.',already_joined:'You have already joined this class. Use “I have joined before” to sign in.',class_full:'This class is full. Ask your teacher.',not_found:'No student with that index number in this class.',wrong_pin:'Wrong PIN.',locked:'Too many wrong PINs. Try again in 15 minutes, or ask your teacher to reset your PIN.',bad_token:'Your sign-in has expired. Please sign in again.',rate_limited:'Too many submissions in the last hour. Try later.'};
+const CLERR={class_not_found:'No class with that code. Check the code your teacher gave you.',bad_pin:'The PIN must be 4–6 digits.',bad_details:'Enter your full name and index number.',already_joined:'You have already joined this class. Use “I have joined before” to sign in.',class_full:'This class is full. Ask your teacher.',not_found:'Index number or PIN is incorrect.',wrong_pin:'Index number or PIN is incorrect.',locked:'Too many wrong PINs. Try again in 15 minutes, or ask your teacher to reset your PIN.',bad_token:'You were signed out (on another device or after a PIN reset). Please sign in again.',rate_limited:'Too many submissions in the last hour. Try later.'};
 function clErr(e){const m=(e&&(e.message||e.msg))||String(e);for(const k in CLERR)if(m.includes(k))return CLERR[k];if(/fetch|network|Failed/i.test(m))return 'No internet connection. Your results are saved on this device and will be sent later.';return m;}
 function clEnabled(){return !!(window.WASSCE_CLOUD&&!window.claude);}
-function clLoadLib(){return new Promise((res,rej)=>{if(window.supabase)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';s.onload=()=>res();s.onerror=()=>rej(new Error('network'));document.head.appendChild(s);});}
+/* Exact version + Subresource Integrity: the browser refuses the script if the CDN serves different bytes.
+   Keep in step with teacher.html; check with scripts/validate_lab.py. */
+const SUPABASE_JS={src:'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js',integrity:'sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK'};
+function clLoadLib(){return new Promise((res,rej)=>{if(window.supabase)return res();const s=document.createElement('script');s.src=SUPABASE_JS.src;s.integrity=SUPABASE_JS.integrity;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';s.onload=()=>res();s.onerror=()=>rej(new Error('network'));document.head.appendChild(s);});}
 async function clInit(){
   if(!clEnabled())return;
   try{CL.me=JSON.parse(localStorage.getItem(CL.meKey)||'null');}catch(e){CL.me=null;}
@@ -17,7 +20,8 @@ async function clInit(){
   if(CL.me)await clRefresh();
   clFlush();window.addEventListener('online',()=>{clFlush();clRefresh();});
 }
-async function clRpc(fn,args){const {data,error}=await CL.sb.rpc(fn,args);if(error)throw error;return data;}
+// Some failures (e.g. a wrong PIN) come back as {error} so the server can record them; treat them as errors.
+async function clRpc(fn,args){const {data,error}=await CL.sb.rpc(fn,args);if(error)throw error;if(data&&typeof data==='object'&&typeof data.error==='string')throw new Error(data.error);return data;}
 async function clRefresh(){
   if(!CL.ready||!CL.me)return;
   try{CL.data=await clRpc('student_me',{p_token:CL.me.token});CL.me={...CL.me,...CL.data.me};localStorage.setItem(CL.meKey,JSON.stringify(CL.me));}
@@ -62,7 +66,7 @@ function clJoinForm(mode){
     <div id="clprev" class="sub" style="align-self:end"></div></div>
    <div class="note" id="clmsg"></div>
    <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn pri" id="clgo">${join?'Join class':'Sign in'}</button></div>
-   <p class="sub" style="color:var(--muted)">Your results from missions and mock exams will be sent to your teacher. Remember your PIN; your teacher can reset it if you forget.</p>`;
+   <p class="sub" style="color:var(--muted)">Your results from missions and mock exams will be sent to your teacher. Remember your PIN; your teacher can reset it if you forget. Signing out signs you out on every device.</p>`;
   $$('[data-m]',b).forEach(x=>x.onclick=()=>clJoinForm(x.dataset.m));
   const code=$('#clcode');let t=null;code.oninput=()=>{clearTimeout(t);const v=code.value.trim();if(v.length<6||!CL.ready)return;t=setTimeout(async()=>{try{const r=await clRpc('class_lookup',{p_code:v});$('#clprev').textContent=r?`✓ ${r.name}${r.school?' · '+r.school:''}`:'No class with this code';}catch(e){}},300);};
   $('#clgo').onclick=async()=>{const msg=$('#clmsg');if(!CL.ready){msg.className='note warn';msg.textContent='No connection to the class server.';return;}
@@ -80,10 +84,13 @@ function clMine(){
    ${q.length?`<div class="note warn">${q.length} result(s) are waiting on this device and will be sent when you are online.</div>`:''}
    <h3 style="margin-top:14px">Assigned by your teacher</h3>${d.assignments.length?`<table class="obs"><tr><th>Mission</th><th>Due</th><th></th></tr>${d.assignments.map(a=>`<tr><td><b>${esc(a.title)}</b>${a.note?`<div class="sub">${esc(a.note)}</div>`:''}</td><td>${a.due?new Date(a.due).toLocaleDateString():'—'}</td><td>${done(a.mission_id)?'<span style="color:var(--good)">✓ done</span>':`<button class="btn sm pri" data-go="${esc(a.mission_id)}">Start</button>`}</td></tr>`).join('')}</table>`:'<div class="sub">No assignments yet.</div>'}
    <h3 style="margin-top:14px">My results</h3>${d.attempts.length?`<div class="obswrap" style="max-height:260px"><table class="obs"><tr><th>Date</th><th>Activity</th><th>Score</th></tr>${d.attempts.map(a=>`<tr><td>${new Date(a.at).toLocaleDateString()}</td><td>${esc(a.title||title(a.mission_id))}</td><td class="mono">${+a.score}/${+a.max}${a.grade?` · <b>${esc(a.grade)}</b>`:''}</td></tr>`).join('')}</table></div>`:'<div class="sub">Submit a mission report or a mock exam to see your results here.</div>'}
-   <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn sm" id="clref">↻ Refresh</button><button class="btn sm" id="clout">Sign out on this device</button></div>`;
+   <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn sm" id="clref">↻ Refresh</button><button class="btn sm" id="clout">Sign out (all devices)</button></div>`;
   $$('[data-go]',b).forEach(x=>x.onclick=()=>{$('#clmodal').remove();loadScenario(SCENARIOS.find(s=>s.id===x.dataset.go));});
   $('#clref').onclick=async()=>{await clRefresh();await clFlush();clMine();};
-  $('#clout').onclick=()=>{if(clQueue().length&&!confirmInline())return;CL.me=null;CL.data=null;localStorage.removeItem(CL.meKey);clButton();clJoinForm('login');};
+  $('#clout').onclick=async()=>{await clFlush();if(clQueue().length&&!confirmInline())return;const tok=CL.me&&CL.me.token;
+    // Revoke the token on the server so a copy left on this device stops working. Best effort when offline.
+    if(CL.ready&&tok){try{await clRpc('student_logout',{p_token:tok});}catch(e){}}
+    CL.me=null;CL.data=null;localStorage.removeItem(CL.meKey);clSetQueue([]);clJoinForm('login');};
   function confirmInline(){const o=$('#clout');if(o.dataset.armed)return true;o.dataset.armed=1;o.textContent='Results not yet sent will be lost. Click again';return false;}
 }
 

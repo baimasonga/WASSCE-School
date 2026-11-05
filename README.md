@@ -44,3 +44,26 @@ Import WASSCE School JSON packs from Downloads, preview before installation, cho
 ## Android v0.4.0: offline Chemistry simulator
 
 Tap **Chemistry lab • offline simulator** on the study home screen. The supplied lab, missions, notebook and timed practical ship inside the APK. Rotate for a wider bench. Completed mock summaries stay on the phone; the current experiment restarts after closing. Online class features open separately in your browser. See [Android lab details](docs/ANDROID_CHEMISTRY_LAB.md).
+
+## Android v0.5.0: redesigned study app
+
+- **Navigation:** Home, Practice, Progress and More tabs replace the single long screen. Your exam profile (country, subject, year, candidates) and question packs now live under More.
+- **Home:** resume or discard a saved session, day streak, accuracy and questions seen, plus one-tap actions: review due questions, practise weak topics, quick 10-question practice, mock exam, and the Chemistry lab.
+- **Smarter practice:** practice sets put past mistakes first, then questions due for spaced review (1, 3, 7, 16 and 35 days after correct answers; immediately after wrong ones), then unseen questions. Filter by section and topic with chips, choose 10/20/30 questions, or practise only saved, mistaken or due questions. Practice now scores only the questions you answer; skipped ones no longer count as wrong.
+- **Progress:** accuracy, answers and streak; weak topics (at least 3 answers, under 70% correct) with a Practise button; coverage and accuracy by section and topic; mock-exam trend and recent session history.
+- **Exam experience:** confirm before submitting (with unanswered and flagged counts), a question grid to jump anywhere, flag questions for review, a time-left bar that turns red in the last 5 minutes, and a results screen with percentage, time taken, section breakdown and a wrong-only answer review.
+- Follows the phone's light or dark theme. Progress from v0.4 carries over; questions answered before this version start out due for review.
+
+## Screenshots
+
+`docs/screenshots/` holds renders of the main screens, made on the JVM with Robolectric and Roborazzi from sample progress data (no emulator needed). Regenerate them after UI changes:
+
+```sh
+gradle testDebugUnitTest -Pscreenshots -ProbolectricRepo=https://maven-central.storage-download.googleapis.com/maven2
+```
+
+Without `-Pscreenshots` the screenshot tests are skipped, so normal test runs and CI stay fast. `-ProbolectricRepo` is optional; it sends Robolectric's large runtime download to Google's mirror of Maven Central, which avoids Central's per-IP download limit on shared networks. The **Android screenshots** workflow (Actions tab → Run workflow) renders them in CI and uploads them as an artifact.
+
+| Home | Practice | Progress | Answer checked | Mock exam grid | Results |
+|---|---|---|---|---|---|
+| ![](docs/screenshots/01-home.png) | ![](docs/screenshots/02-practice.png) | ![](docs/screenshots/03-progress.png) | ![](docs/screenshots/05-practice-checked.png) | ![](docs/screenshots/07-exam-grid.png) | ![](docs/screenshots/10-exam-results.png) |
