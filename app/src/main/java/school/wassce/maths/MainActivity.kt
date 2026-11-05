@@ -254,11 +254,14 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                 Choice("Section", listOf("All sections") + source.map { it.section }.distinct(), section) { section = it; topic = "All topics" }
                 val topics = source.filter { section == "All sections" || it.section == section }.map { it.topic }.distinct().sorted()
                 Choice("Topic", listOf("All topics") + topics, topic) { topic = it }
+                // Read saved/mistake sets once per change, not once per question (each read parses SharedPreferences JSON).
+                val savedIds = remember(revision) { store.bookmarks() }
+                val mistakeIds = remember(revision) { store.mistakes() }
                 val allowed = source.filter { q ->
                     (includeMarked || !q.marked) && (section == "All sections" || q.section == section) &&
                         (topic == "All topics" || q.topic == topic) && when(screen) {
-                            "Bookmarks" -> q.id in store.bookmarks()
-                            "Mistakes" -> q.id in store.mistakes()
+                            "Bookmarks" -> q.id in savedIds
+                            "Mistakes" -> q.id in mistakeIds
                             else -> true
                         }
                 }

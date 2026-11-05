@@ -8,7 +8,10 @@ const CL={sb:null,me:null,data:null,ready:false,queueKey:'wassce-queue',meKey:'w
 const CLERR={class_not_found:'No class with that code. Check the code your teacher gave you.',bad_pin:'The PIN must be 4–6 digits.',bad_details:'Enter your full name and index number.',already_joined:'You have already joined this class. Use “I have joined before” to sign in.',class_full:'This class is full. Ask your teacher.',not_found:'No student with that index number in this class.',wrong_pin:'Wrong PIN.',locked:'Too many wrong PINs. Try again in 15 minutes, or ask your teacher to reset your PIN.',bad_token:'Your sign-in has expired. Please sign in again.',rate_limited:'Too many submissions in the last hour. Try later.'};
 function clErr(e){const m=(e&&(e.message||e.msg))||String(e);for(const k in CLERR)if(m.includes(k))return CLERR[k];if(/fetch|network|Failed/i.test(m))return 'No internet connection. Your results are saved on this device and will be sent later.';return m;}
 function clEnabled(){return !!(window.WASSCE_CLOUD&&!window.claude);}
-function clLoadLib(){return new Promise((res,rej)=>{if(window.supabase)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';s.onload=()=>res();s.onerror=()=>rej(new Error('network'));document.head.appendChild(s);});}
+/* Exact version + Subresource Integrity: the browser refuses the script if the CDN serves different bytes.
+   Keep in step with teacher.html; check with scripts/validate_lab.py. */
+const SUPABASE_JS={src:'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js',integrity:'sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK'};
+function clLoadLib(){return new Promise((res,rej)=>{if(window.supabase)return res();const s=document.createElement('script');s.src=SUPABASE_JS.src;s.integrity=SUPABASE_JS.integrity;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';s.onload=()=>res();s.onerror=()=>rej(new Error('network'));document.head.appendChild(s);});}
 async function clInit(){
   if(!clEnabled())return;
   try{CL.me=JSON.parse(localStorage.getItem(CL.meKey)||'null');}catch(e){CL.me=null;}

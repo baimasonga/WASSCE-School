@@ -7,6 +7,9 @@ import {namespacePack,validatePack,type Pack} from "../../../lib/questions";
 import {corePack,coreQuestions} from "../../../lib/bank";
 export const dynamic="force-dynamic";
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{"Cache-Control":"no-store"}});
+// Only the deployment owner's ChatGPT account may claim publishing, and only while no admin exists.
+// SCHOOL_ADMIN_EMAIL is compared with the platform-authenticated email header; unset means setup is closed.
+function isDesignatedOwner(user:{email:string}|null){const owner=(env.SCHOOL_ADMIN_EMAIL||"").trim().toLowerCase();return !!owner&&!!user&&user.email.trim().toLowerCase()===owner;}
 async function adminId(){return (await getDb().select().from(settings).where(eq(settings.key,"admin_id")).limit(1))[0]?.value;}
 async function library(){const rows=await getDb().select().from(packs).where(eq(packs.status,"published"));return {rows,questions:[...coreQuestions,...rows.flatMap(r=>namespacePack(JSON.parse(r.content) as Pack))]};}
 export async function GET(request:Request){
@@ -24,7 +27,7 @@ export async function GET(request:Request){
    const raw="content" in p?p.content:JSON.stringify(p);
    return new Response(raw,{headers:{"Content-Type":"application/json; charset=utf-8","Content-Disposition":`attachment; filename="${id}.json"`,"Cache-Control":"no-store"}});
   }
-  if(action==="me")return json({user:user?{name:user.displayName,email:user.email}:null,admin:!!user&&user.userId===await adminId(),canSetup:!!user&&env.SCHOOL_PRIVATE_ADMIN==="1"&&!await adminId()});
+  if(action==="me")return json({user:user?{name:user.displayName,email:user.email}:null,admin:!!user&&user.userId===await adminId(),canSetup:isDesignatedOwner(user)&&!await adminId()});
   if(!user)return json({error:"Sign in to save and manage your learning."},401);
   if(action==="progress")return json({attempts:await getDb().select().from(attempts).where(eq(attempts.userId,user.userId)).orderBy(desc(attempts.createdAt)).limit(5000),bookmarks:(await getDb().select().from(bookmarks).where(eq(bookmarks.userId,user.userId))).map(b=>b.questionId)});
   if(action==="publishing"){
@@ -42,7 +45,7 @@ export async function POST(request:Request){
   if(reader){while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>800000){await reader.cancel();return json({error:"File too large. Maximum publishing size is 750 KB."},413);}raw+=decoder.decode(part.value,{stream:true});}raw+=decoder.decode();}
   const body=JSON.parse(raw),db=getDb();
   if(body.action==="setup"){
-   if(env.SCHOOL_PRIVATE_ADMIN!=="1")return json({error:"Publishing setup is not available."},403);
+   if(!isDesignatedOwner(user))return json({error:"Publishing setup is not available for this account."},403);
    await db.insert(settings).values({key:"admin_id",value:user.userId}).onConflictDoNothing();
    return user.userId===await adminId()?json({ok:true}):json({error:"Publishing has already been assigned."},403);
   }
