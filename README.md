@@ -53,3 +53,17 @@ Tap **Chemistry lab • offline simulator** on the study home screen. The suppli
 - **Progress:** accuracy, answers and streak; weak topics (at least 3 answers, under 70% correct) with a Practise button; coverage and accuracy by section and topic; mock-exam trend and recent session history.
 - **Exam experience:** confirm before submitting (with unanswered and flagged counts), a question grid to jump anywhere, flag questions for review, a time-left bar that turns red in the last 5 minutes, and a results screen with percentage, time taken, section breakdown and a wrong-only answer review.
 - Follows the phone's light or dark theme. Progress from v0.4 carries over; questions answered before this version start out due for review.
+
+## Screenshots
+
+`docs/screenshots/` holds renders of the main screens, made on the JVM with Robolectric and Roborazzi from sample progress data (no emulator needed). Regenerate them after UI changes:
+
+```sh
+gradle testDebugUnitTest -Pscreenshots -ProbolectricRepo=https://maven-central.storage-download.googleapis.com/maven2
+```
+
+Without `-Pscreenshots` the screenshot tests are skipped, so normal test runs and CI stay fast. `-ProbolectricRepo` is optional; it sends Robolectric's large runtime download to Google's mirror of Maven Central, which avoids Central's per-IP download limit on shared networks. The **Android screenshots** workflow (Actions tab → Run workflow) renders them in CI and uploads them as an artifact.
+
+| Home | Practice | Progress | Answer checked | Mock exam grid | Results |
+|---|---|---|---|---|---|
+| ![](docs/screenshots/01-home.png) | ![](docs/screenshots/02-practice.png) | ![](docs/screenshots/03-progress.png) | ![](docs/screenshots/05-practice-checked.png) | ![](docs/screenshots/07-exam-grid.png) | ![](docs/screenshots/10-exam-results.png) |

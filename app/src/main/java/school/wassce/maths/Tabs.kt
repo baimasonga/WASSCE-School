@@ -83,7 +83,7 @@ fun HomeTab(st: StudyState, onResume: () -> Unit, onDiscard: () -> Unit, onEditP
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile("${st.streak}", "day streak", Modifier.weight(1f))
             StatTile(percent(st.correct, st.attempts), "accuracy", Modifier.weight(1f))
-            StatTile("${st.seen}/${st.visible.size}", "questions seen", Modifier.weight(1f))
+            StatTile("${st.seen}", "of ${st.visible.size} seen", Modifier.weight(1f))
         }
         if (st.source.isEmpty()) {
             SectionHeader("${st.subject.name} is being prepared")

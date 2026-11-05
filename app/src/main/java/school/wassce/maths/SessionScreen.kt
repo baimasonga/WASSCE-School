@@ -92,12 +92,12 @@ fun SessionScreen(
                     }
                 )
                 LinearProgressIndicator(progress = { if (chosen.isEmpty()) 0f else answered.toFloat() / chosen.size },
-                    modifier = Modifier.fillMaxWidth(), drawStopIndicator = {})
+                    modifier = Modifier.fillMaxWidth(), trackColor = MaterialTheme.colorScheme.surfaceContainerHigh, drawStopIndicator = {})
                 if (s.exam && !s.finished) {
                     val left = (s.deadline - now).coerceAtLeast(0)
                     val urgent = left < 5 * 60_000
                     Surface(color = if (urgent) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Time left ${formatDuration(left)}", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
                                 color = if (urgent) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface)
                             Text("$answered answered", style = MaterialTheme.typography.labelMedium)
@@ -241,7 +241,8 @@ private fun Results(s: Session, chosen: List<Question>, onOpen: (Int) -> Unit, o
             if (wrongOnly && ok) return@forEachIndexed
             ListItem(
                 modifier = Modifier.clickable { onOpen(i) },
-                leadingContent = { Text(if (ok) "✓" else "✗", style = MaterialTheme.typography.titleLarge, color = if (ok) correctColor() else MaterialTheme.colorScheme.error) },
+                leadingContent = { Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                    Text(if (ok) "✓" else "✗", style = MaterialTheme.typography.titleLarge, color = if (ok) correctColor() else MaterialTheme.colorScheme.error) } },
                 headlineContent = { Text("${i + 1}. ${q.text}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
                 supportingContent = { Text(if (picked == null) "Not answered · answer ${q.answer}" else if (ok) "You chose $picked" else "You chose $picked · answer ${q.answer}") }
             )

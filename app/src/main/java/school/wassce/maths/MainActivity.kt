@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Dest(val label: String, val icon: ImageVector) {
+internal enum class Dest(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Filled.Home), Practice("Practice", Icons.Filled.Edit), Progress("Progress", Icons.Filled.Star), More("More", Icons.Filled.Menu)
 }
 
@@ -199,14 +199,7 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
     BackHandler(enabled = dest != Dest.Home) { dest = Dest.Home }
     val st = StudyState(subject, "${subject.name} · ${COUNTRY_NAMES[country]} · $examYear ${if (examSeries == "school") "school" else "private"} candidates",
         source, visible, stats, saved, history, streak(days, epochDay(now)), s, s?.let(::questionsOf) ?: emptyList(), now, includeMarked)
-    Scaffold(bottomBar = {
-        NavigationBar {
-            Dest.entries.forEach { d ->
-                NavigationBarItem(selected = dest == d, onClick = { dest = d }, icon = { Icon(d.icon, contentDescription = null) }, label = { Text(d.label) })
-            }
-        }
-    }) { padding ->
-        Box(Modifier.padding(padding).statusBarsPadding()) {
+    MainTabs(dest, onDest = { dest = it }) {
             when (dest) {
                 Dest.Home -> HomeTab(st,
                     onResume = { inSession = true }, onDiscard = ::discard, onEditProfile = { dest = Dest.More },
@@ -224,6 +217,19 @@ private fun School(bank: List<Question>, store: StudyStore, packs: List<Question
                     packLabels, packLabels[packIds.indexOf(activePack)], { label -> packId = packIds[packLabels.indexOf(label)] },
                     packs, busy || session?.finished == false, onImport, onRemove, ::openLab)
             }
+    }
+}
+
+/** The tab bar and content area around the four main tabs. */
+@Composable
+internal fun MainTabs(dest: Dest, onDest: (Dest) -> Unit, content: @Composable () -> Unit) {
+    Scaffold(bottomBar = {
+        NavigationBar {
+            Dest.entries.forEach { d ->
+                NavigationBarItem(selected = dest == d, onClick = { onDest(d) }, icon = { Icon(d.icon, contentDescription = null) }, label = { Text(d.label) })
+            }
         }
+    }) { padding ->
+        Box(Modifier.padding(padding).statusBarsPadding()) { content() }
     }
 }
