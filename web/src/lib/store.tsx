@@ -4,7 +4,10 @@ import { countryApplies, questionSubject, SUBJECTS, type Country } from "../../s
 import { dayNumber, gradedQuestions, statsFrom, streak, summarize, type Attempt, type QStat, type Session, type SessionResult } from "../../shared/insights";
 import type { Question } from "../../shared/questions";
 import { EXAM_MS } from "../config";
-import { api } from "./api";
+import { api, ApiError } from "./api";
+
+/** The server permanently refused this item (e.g. its questions were removed): retrying won't help. */
+const rejected = (e: unknown) => e instanceof ApiError && (e.status === 400 || e.status === 404);
 import { load, save } from "./storage";
 import { supabase } from "./supabase";
 
@@ -14,7 +17,8 @@ type Progress = { attempts: Attempt[]; bookmarks: string[]; results: SessionResu
 
 const DEFAULT_PROFILE: Profile = { country: "SL", subjectId: "mathematics", examYear: 2026, examSeries: "school", includeMarked: false };
 const EMPTY: Progress = { attempts: [], bookmarks: [], results: [] };
-const K = { profile: "ws.profile", session: "ws.session", local: "ws.progress" };
+// pending: finished sessions not yet stored on the server (a guest's, until sign-in; or a failed upload), retried later.
+const K = { profile: "ws.profile", session: "ws.session", local: "ws.progress", pending: "ws.pending" };
 
 export const matchesProfile = (q: Question, p: Profile) =>
   questionSubject(q) === p.subjectId && countryApplies(q.countries, p.country) &&
@@ -74,28 +78,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProgress({ attempts: p.attempts, bookmarks: p.bookmarks, results: p.sessions });
   }, [userId]);
 
-  // On sign-in: move progress saved in this browser into the account once, then load the account's progress.
+  /** Uploads finished sessions the server doesn't have yet. Each is removed only once stored; the server ignores repeats. */
+  const flushPending = useCallback(async () => {
+    let pending = load<Session[]>(K.pending, []);
+    while (pending.length) {
+      try { await api("/sessions", { body: pending[0] }); } catch (e) { if (!rejected(e)) return false; }
+      pending = pending.slice(1); save(K.pending, pending.length ? pending : null);
+    }
+    return true;
+  }, []);
+
+  // On sign-in: move progress saved in this browser into the account, then load the account's progress.
+  // Each part is removed from the browser only after it has been stored, so a failure loses nothing.
   const imported = useRef<string | null>(null);
   useEffect(() => {
     if (!authReady) return;
     (async () => {
       if (userId && imported.current !== userId) {
         imported.current = userId;
-        const local = load<Progress>(K.local, EMPTY);
+        let local = load<Progress>(K.local, EMPTY);
+        const sessions = load<Session[]>(K.pending, []).length;
+        const answers = local.attempts.length;
+        let complete = true;
         try {
+          // Answers first, so each keeps the time it was checked; then whole sessions (repeats are ignored by the server).
           for (let i = 0; i < local.attempts.length; i += 1000) {
             await api("/attempts", { body: { attempts: local.attempts.slice(i, i + 1000).map(a => ({ key: a.key, questionId: a.questionId, answer: a.answer, createdAt: a.createdAt })) } });
           }
-          for (const id of local.bookmarks) await api("/bookmarks", { body: { questionId: id, saved: true } }).catch(() => undefined);
-          if (local.attempts.length || local.bookmarks.length) {
-            save(K.local, null);
-            setNotice(`Your progress from this browser (${local.attempts.length} answers) is now saved to your account.`);
-          }
-        } catch { /* keep local copy; try again next sign-in */ imported.current = null; }
+          local = { ...local, attempts: [], results: [] };
+        } catch { complete = false; }
+        if (complete) complete = await flushPending();
+        const failed: string[] = [];
+        for (const id of local.bookmarks) await api("/bookmarks", { body: { questionId: id, saved: true } }).catch(e => { if (!rejected(e)) failed.push(id); });
+        local = { ...local, bookmarks: failed };
+        if (failed.length) complete = false;
+        save(K.local, local.attempts.length || local.bookmarks.length ? local : null);
+        if (answers || sessions) setNotice(complete ? `Your progress from this browser (${answers} answer${answers === 1 ? "" : "s"}, ${sessions} session${sessions === 1 ? "" : "s"}) is now saved to your account.`
+          : "Some of your progress from this browser couldn't be saved yet. It's kept here and will be retried next time you sign in.");
+        if (!complete) imported.current = null;
       }
       await refresh().catch(e => setLoadError((e as Error).message));
     })();
-  }, [authReady, userId, refresh]);
+  }, [authReady, userId, refresh, flushPending]);
+
+  // Retry pending uploads when the connection comes back.
+  useEffect(() => {
+    if (!userId) return;
+    const retry = () => { void flushPending().then(ok => { if (ok) void refresh(); }); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [userId, flushPending, refresh]);
 
   const setProfile = useCallback((p: Partial<Profile>) => setProfileState(old => { const next = { ...old, ...p }; save(K.profile, next); return next; }), []);
   const persistSession = useCallback((s: Session | null) => { save(K.session, s); setSession(s); }, []);
@@ -138,29 +170,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     finishing.current = true;
     const at = Date.now();
     const chosen = s.ids.map(id => byId.get(id)).filter((q): q is Question => !!q);
-    persistSession({ ...s, finished: true, finishedAt: at });
+    if (chosen.length !== s.ids.length) { finishing.current = false; return; } // questions still loading: never score a partial session
+    const done: Session = { ...s, finished: true, finishedAt: at };
+    persistSession(done);
+    // Queue first, so the session reaches the account even if this upload fails or the tab closes.
+    save(K.pending, [...load<Session[]>(K.pending, []).filter(x => x.token !== done.token), done].slice(-100));
     try {
       if (userId) {
-        await api("/sessions", { body: s });
-        await refresh();
+        if (await flushPending()) await refresh();
+        else setNotice("Your results are shown here but couldn't be saved to your account yet. They'll be sent when you're back online.");
       } else {
-        const result = summarize(s, chosen, at);
+        const result = summarize(done, chosen, at);
         persistLocal(p => {
           const keys = new Set(p.attempts.map(a => a.key));
-          const fresh = gradedQuestions(s, chosen).map(q => localAttempt(q, s.token, s.responses[q.id] ?? "", at)).filter(a => !keys.has(a.key));
+          const fresh = gradedQuestions(done, chosen).map(q => localAttempt(q, s.token, s.responses[q.id] ?? "", at)).filter(a => !keys.has(a.key));
           return { ...p, attempts: [...fresh, ...p.attempts].slice(0, 20000), results: [result, ...p.results].slice(0, 100) };
         });
       }
-    } catch { setNotice("Your results are shown here but couldn't be saved to your account. Check your connection."); }
-    finally { finishing.current = false; }
-  }, [session, byId, userId, persistSession, persistLocal, refresh]);
+    } finally { finishing.current = false; }
+  }, [session, byId, userId, persistSession, persistLocal, refresh, flushPending]);
 
   // Exam clock: auto-submits when time runs out, even if the exam page isn't open.
   useEffect(() => {
     if (!session?.exam || session.finished) return;
-    const t = setInterval(() => { const n = Date.now(); setNow(n); if (n >= session.deadline) void finish(); }, 500);
+    // Only submit once sign-in state and all of this session's questions have loaded.
+    const loaded = authReady && sessionQuestions.length === session.ids.length;
+    const t = setInterval(() => { const n = Date.now(); setNow(n); if (n >= session.deadline && loaded) void finish(); }, 500);
     return () => clearInterval(t);
-  }, [session, finish]);
+  }, [session, finish, authReady, sessionQuestions.length]);
 
   const toggleBookmark = useCallback(async (id: string) => {
     const saved = !progress.bookmarks.includes(id);

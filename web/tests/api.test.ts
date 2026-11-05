@@ -76,6 +76,16 @@ describe("progress", () => {
     expect(p.sessions).toHaveLength(1);
     expect(p.sessions[0]).toMatchObject({ label: "Mock exam", correct: 1, total: 4, exam: true });
   });
+  it("keeps the original finish time of a session uploaded later", async () => {
+    fresh(); const t = await student();
+    const ids = coreQuestions.slice(0, 2).map(x => x.id);
+    const finishedAt = Date.now() - 3 * 86_400_000;
+    await call("/sessions", { method: "POST", token: t, body: JSON.stringify({ token: "bbbbcccc-dddd", ids, exam: true, label: "Mock exam", responses: {}, startedAt: finishedAt - 3_600_000, finishedAt }) });
+    const p = (await call("/progress", { token: t })).body;
+    expect(p.sessions[0].createdAt).toBe(finishedAt);
+    expect(p.sessions[0].durationMs).toBe(3_600_000);
+    expect(p.attempts.every((a: { createdAt: number }) => a.createdAt === finishedAt)).toBe(true);
+  });
   it("practice sessions only score answered questions", async () => {
     fresh(); const t = await student();
     const ids = coreQuestions.slice(0, 3).map(x => x.id);

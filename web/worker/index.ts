@@ -147,16 +147,18 @@ export function createApp(options: { getKey?: JWTVerifyGetKey } = {}) {
     for (const q of qs) { const a = s.responses[q.id]; if (typeof a === "string" && ANSWERS.has(a) && a) responses[q.id] = a; }
     const session: Session = { ...s, exam: !!s.exam, label: String(s.label ?? "").slice(0, 120), subjectId: qs[0].subject_id ?? "mathematics", responses,
       startedAt: Number.isFinite(s.startedAt) ? Math.min(Date.now(), Number(s.startedAt)) : 0 };
+    // A session finished offline or before sign-in keeps its own finish time (within the last year).
     const now = Date.now();
-    const result = summarize(session, qs, now);
+    const at = Number.isFinite(s.finishedAt) && s.finishedAt > 0 ? Math.min(now, Math.max(now - 365 * 86_400_000, Number(s.finishedAt))) : now;
+    const result = summarize(session, qs, at);
     const { country, examYear } = profile(s.country, s.examYear);
-    const graded = gradedQuestions(session, qs).map(q => ({ key: `${session.token}/${q.id}`, questionId: q.id, answer: responses[q.id] ?? "" }));
+    const graded = gradedQuestions(session, qs).map(q => ({ key: `${session.token}/${q.id}`, questionId: q.id, answer: responses[q.id] ?? "", createdAt: at }));
     const rows = attemptRows(u, graded, index, country, examYear);
     const stmt = c.env.DB.prepare(INSERT_ATTEMPT);
     await c.env.DB.batch([
       ...rows.map(r => stmt.bind(...r)),
       c.env.DB.prepare("INSERT OR IGNORE INTO sessions (user_id, token, exam, label, subject_id, correct, total, answered, duration_ms, sections, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-        .bind(u.id, result.token, result.exam ? 1 : 0, result.label, result.subjectId, result.correct, result.total, result.answered, result.durationMs, JSON.stringify(result.sections), now),
+        .bind(u.id, result.token, result.exam ? 1 : 0, result.label, result.subjectId, result.correct, result.total, result.answered, result.durationMs, JSON.stringify(result.sections), at),
     ]);
     return c.json({ ok: true, result });
   });
