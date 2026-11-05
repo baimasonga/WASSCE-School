@@ -1,0 +1,28 @@
+{
+  // Cloudflare Worker that serves the React app (static assets) and the /api routes.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wassce-school",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // /api/* goes to the Worker; everything else is served from the built app.
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wassce-school",
+      // Replace with the id printed by `npx wrangler d1 create wassce-school` (see DEPLOY.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SUPABASE_URL": "https://vdcnrkmoqoxhhpsrmydo.supabase.co",
+    // Comma-separated emails of accounts allowed to publish question packs.
+    "ADMIN_EMAILS": ""
+  }
+}
