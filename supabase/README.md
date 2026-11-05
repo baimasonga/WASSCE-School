@@ -11,8 +11,15 @@ These migrations are the database behind the website lab's class features (`web/
   - `student_me(token)` / `submit_attempt(token, …)`: the student's own assignments and results; submissions are capped at 60 per hour.
 - `anon` has no table policies, so direct table access returns nothing.
 
-## Known limitations (not yet fixed)
+## Hardening (migration `20261105134520_wassce_lab_harden_students`)
 
-- `submit_attempt` takes the client's `p_at` as `created_at`, and the hourly cap counts by `created_at`. Backdated submissions get around the cap and can appear to have been made before a due date.
-- A student's `token` never changes; "Sign out on this device" does not revoke it.
-- `student_login` returns `not_found` and `wrong_pin` as different errors, so someone with a class code can find out which index numbers have joined.
+- **Rate limit:** `attempts.received_at` is set by the server and the 60-per-hour cap counts it, so a backdated `p_at` no longer dodges the cap. `created_at` still records when the device says the work was done (results queue offline), but it is clamped to no later than now, no earlier than 14 days ago, and no earlier than the student joining.
+- **Sign-out:** `student_logout(token)` replaces the student's token, so "Sign out" now signs the student out on every device. `teacher_reset_pin` does the same. Results still queued on another device under the old token are discarded when that device next connects.
+- **Login errors:** `student_login` gives `wrong_pin` for both an unknown index number and a wrong PIN, and runs bcrypt on both paths so the timing matches.
+
+Applied to the live project on 2026-11-05 and tested there in a rolled-back transaction as the `anon` and `authenticated` roles.
+
+## Remaining limitations
+
+- `student_join` still answers `already_joined` for an index number that is in the class, and `student_login` answers `locked` only for a real student. Someone with a class code can therefore still find out which index numbers have joined. Closing this would mean changing how joining works.
+- Student PINs are 4–6 digits. The lockout allows about 8 guesses, then one guess per 15 minutes, which is roughly 100 guesses a day.
